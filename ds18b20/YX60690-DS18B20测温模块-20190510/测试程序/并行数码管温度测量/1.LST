@@ -1,0 +1,217 @@
+C51 COMPILER V8.09   1                                                                     11/24/2008 16:41:08 PAGE 1   
+
+
+C51 COMPILER V8.09, COMPILATION OF MODULE 1
+OBJECT MODULE PLACED IN 1.OBJ
+COMPILER INVOKED BY: D:\Keil\C51\BIN\C51.EXE 1.c BROWSE DEBUG OBJECTEXTEND
+
+line level    source
+
+   1          /*******************************************
+   2          程序功能：利用单线制DS18B20温度传感器
+   3                    LED数码管显示当前的温度值
+   4          ********************************************/
+   5          #include <reg51.h>                 //DS18B20温度传感器程序 
+   6          code unsigned char seg7code[]={0xc0,0xf9,0xa4,0xb0,0x99,0x92,
+   7                                         0x82,0xf8,0x80,0x90,0xff}; //不带小数点的共阳数码管段码
+   8          code unsigned char seg7codeB[]={0x40,0x79,0x24,0x30,0x19,0x12,
+   9                                         0x02,0x78,0x00,0x10,0xff}; //带小数点的共阳数码管段码
+  10          
+  11          sbit DQ=P3^6; //数据传输线接单片机的相应的引脚 
+  12          unsigned char tempL=0; //设全局变量
+  13          unsigned char tempH=0; 
+  14          unsigned int sdata;//测量到的温度的整数部分
+  15          unsigned char xiaoshu1;//小数第一位
+  16          unsigned char xiaoshu2;//小数第二位
+  17          unsigned char xiaoshu;//两位小数
+  18          bit  fg=1;        //温度正负标志
+  19          
+  20          
+  21          
+  22          //******************延时子程序 *******************************
+  23          
+  24          //这个延时程序的具体延时时间是time=i*8+10,适用于小于2ms的延时
+  25          
+  26          //************************************************************
+  27          void delay(unsigned char i)
+  28          {
+  29   1       for(i;i>0;i--);
+  30   1      }
+  31          
+  32          
+  33          //***********************************************************
+  34          
+  35          //                     延时子程序
+  36          
+  37          //************************************************************
+  38          void delay1ms()
+  39          {
+  40   1       unsigned char i;
+  41   1       for(i=124;i>0;i--);  //延时124*8+10=1002us
+  42   1      }
+  43          
+  44          
+  45          
+  46          //*****************************初始化程序 *********************************//
+  47          
+  48          Init_DS18B20(void) 
+  49          {
+  50   1       unsigned char x=0;
+  51   1       DQ=1; //DQ先置高 
+  52   1       delay(8); //稍延时
+  53   1       DQ=0; //发送复位脉冲 
+  54   1       delay(80); //延时（>480us) 
+  55   1       DQ=1; //拉高数据线 
+C51 COMPILER V8.09   1                                                                     11/24/2008 16:41:08 PAGE 2   
+
+  56   1       delay(5); //等待（15~60us) 
+  57   1       x=DQ; //用X的值来判断初始化有没有成功，18B20存在的话X=0，否则X=1 
+  58   1       delay(20); 
+  59   1      } 
+  60          
+  61          
+  62          //**********读一个字节************//
+  63          
+  64          ReadOneChar(void)  //主机数据线先从高拉至低电平1us以上，再使数据线升为高电平，从而产生读信号
+  65          {
+  66   1      unsigned char i=0; //每个读周期最短的持续时间为60us，各个读周期之间必须有1us以上的高电平恢复期
+  67   1      unsigned char dat=0; 
+  68   1      for (i=8;i>0;i--) //一个字节有8位 
+  69   1      {
+  70   2       DQ=1; 
+  71   2       delay(1); 
+  72   2       DQ=0;
+  73   2       dat>>=1; 
+  74   2       DQ=1; 
+  75   2       if(DQ) 
+  76   2       dat|=0x80; 
+  77   2       delay(4);
+  78   2      } 
+  79   1      return(dat);
+  80   1      } 
+  81          
+  82          
+  83          
+  84          //*********************** **写一个字节**************************//
+  85          
+  86          WriteOneChar(unsigned char dat) 
+  87          { 
+  88   1        unsigned char i=0; //数据线从高电平拉至低电平，产生写起始信号。15us之内将所需写的位送到数据线上，
+  89   1        for(i=8;i>0;i--) //在15~60us之间对数据线进行采样，如果是高电平就写1，低写0发生。 
+  90   1        {
+  91   2         DQ=0; //在开始另一个写周期前必须有1us以上的高电平恢复期。 
+  92   2         DQ=dat&0x01; 
+  93   2         delay(5); 
+  94   2         DQ=1; 
+  95   2         dat>>=1;
+  96   2        } 
+  97   1        delay(4);
+  98   1      } 
+  99          
+ 100          
+ 101          //读温度值（低位放tempL;高位放tempH;）
+ 102          ReadTemperature(void) 
+ 103          { 
+ 104   1       Init_DS18B20(); //初始化
+ 105   1       WriteOneChar(0xcc); //跳过读序列号的操作
+ 106   1       WriteOneChar(0x44); //启动温度转换
+ 107   1       delay(125); //转换需要一点时间，延时 
+ 108   1       Init_DS18B20(); //初始化
+ 109   1       WriteOneChar(0xcc); //跳过读序列号的操作 
+ 110   1       WriteOneChar(0xbe); //读温度寄存器（头两个值分别为温度的低位和高位） 
+ 111   1       tempL=ReadOneChar(); //读出温度的低位LSB
+ 112   1       tempH=ReadOneChar(); //读出温度的高位MSB 
+ 113   1        
+ 114   1                      if(tempH>0x7f)      //最高位为1时温度是负
+ 115   1                      {
+ 116   2                       tempL=~tempL;         //补码转换，取反加一
+ 117   2                       tempH=~tempH+1;       
+C51 COMPILER V8.09   1                                                                     11/24/2008 16:41:08 PAGE 3   
+
+ 118   2                       fg=0;      //读取温度为负时fg=0
+ 119   2             }
+ 120   1                      sdata = tempL/16+tempH*16;      //整数部分
+ 121   1                      xiaoshu1 = (tempL&0x0f)*10/16; //小数第一位
+ 122   1                      xiaoshu2 = (tempL&0x0f)*100/16%10;//小数第二位
+ 123   1                      xiaoshu=xiaoshu1*10+xiaoshu2; //小数两位
+ 124   1      }
+ 125          
+ 126          
+ 127          //********************显示函数****************
+ 128          void Led(unsigned int date)
+ 129          { 
+ 130   1       if(fg==1)
+ 131   1       {
+ 132   2               P2=0xfe;     //P1.0=0，选通第一位
+ 133   2               P0=seg7code[date/10];  //十位数，查表，输出
+ 134   2               delay1ms();
+ 135   2               P0=0xff;        //消隐
+ 136   2              
+ 137   2               P2=0xfd;     //P1.1=0,选通第二位，个位数
+ 138   2               P0=seg7codeB[date%10];
+ 139   2               delay1ms();
+ 140   2               P0=0xff;       //消隐
+ 141   2              
+ 142   2               P2=0xfb;     //P1.3=0,选通第三位，小数点第一位
+ 143   2               P0=seg7code[xiaoshu1];
+ 144   2               delay1ms();
+ 145   2               P0=0xff;         //消隐
+ 146   2              
+ 147   2               P2=0xf7;     //P1.3=0,选通第四位，小数点第二位
+ 148   2               P0=seg7code[xiaoshu2];
+ 149   2               delay1ms();
+ 150   2               P0=0xff;       //消隐
+ 151   2       }
+ 152   1      
+ 153   1         if(fg==0)  //温度为负时显示的数据
+ 154   1         {
+ 155   2               P2=0xfe;     //P1.0=0，选通第一位
+ 156   2               P0=seg7code[11];  //显示负号
+ 157   2               delay1ms();
+ 158   2               P0=0xff;        //消隐
+ 159   2              
+ 160   2               P2=0xfd;     //P1.1=0,选通第二位，十位数
+ 161   2               P0=seg7code[date/10];
+ 162   2               delay1ms();
+ 163   2               P0=0xff;       //消隐
+ 164   2              
+ 165   2               P2=0xfb;     //P1.3=0,选通第三位，个位数
+ 166   2               P0=seg7codeB[date%10];
+ 167   2               delay1ms();
+ 168   2               P0=0xff;         //消隐
+ 169   2              
+ 170   2               P2=0xf7;     //P1.3=0,选通第四位，小数点第一位
+ 171   2               P0=seg7code[xiaoshu1];
+ 172   2               delay1ms();
+ 173   2               P0=0xff;       //消隐
+ 174   2         }
+ 175   1      }
+ 176          
+ 177          
+ 178          //**************************** //主程序 
+ 179          
+C51 COMPILER V8.09   1                                                                     11/24/2008 16:41:08 PAGE 4   
+
+ 180          
+ 181          main()
+ 182          {
+ 183   1       while(1)
+ 184   1       {
+ 185   2        ReadTemperature();
+ 186   2        Led(sdata);
+ 187   2       }
+ 188   1      }
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =    437    ----
+   CONSTANT SIZE    =     22    ----
+   XDATA SIZE       =   ----    ----
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =      7    ----
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =      1    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)

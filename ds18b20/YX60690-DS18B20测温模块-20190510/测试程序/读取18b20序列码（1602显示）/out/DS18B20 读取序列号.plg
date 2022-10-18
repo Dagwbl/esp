@@ -1,0 +1,17 @@
+<html>
+<body>
+<pre>
+<h1>礦ision Build Log</h1>
+<h2>Project:</h2>
+E:\51开发板\光盘资料\例程 共阴数码管\【实验59】读取18b20序列码\project\DS18B20 读取序列号.uvproj
+Project File Date:  06/24/2013
+
+<h2>Output:</h2>
+Build target 'Target 1'
+assembling STARTUP.A51...
+compiling main.c...
+compiling lcd1602.c...
+linking...
+Program Size: data=81.2 xdata=0 code=1826
+creating hex file from "..\out\DS18B20 读取序列号"...
+"..\out\DS18B20 读取序列号" - 0 Error(s), 0 Warning(s).

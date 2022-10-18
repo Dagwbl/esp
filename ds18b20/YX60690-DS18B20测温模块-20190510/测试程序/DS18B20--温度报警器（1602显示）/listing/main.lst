@@ -1,0 +1,277 @@
+C51 COMPILER V9.00   MAIN                                                                  11/27/2013 00:49:39 PAGE 1   
+
+
+C51 COMPILER V9.00, COMPILATION OF MODULE MAIN
+OBJECT MODULE PLACED IN ..\out\main.obj
+COMPILER INVOKED BY: d:\Keil\C51\BIN\C51.EXE ..\user\main.c BROWSE DEBUG OBJECTEXTEND PRINT(..\listing\main.lst) OBJECT(
+                    -..\out\main.obj)
+
+line level    source
+
+   1          /**********************TS-51A单片机开发板例程************************
+   2          *               Copyright (c) 2013,52探索 单片机开发板
+   3          *               All rights reserved
+   4          *       
+   5          *               文件名称：led.c
+   6          *               功能描述：实时采集当前环境温度值，并显示于1602上。
+   7          *                                       同时，当温度高于某一值时（此处设为33摄氏度），蜂鸣器便会发出报警。
+   8          *                                       而当低于该值时，蜂鸣器自动停止报警。
+   9          * 
+  10          *               当前版本：1.0
+  11          *               作    者：52探索
+  12          *       完成日期：2013-5-29
+  13          *
+  14          *               取代版本：无
+  15          *       改进内容：无
+  16          *
+  17          *               使用环境：TS-51A开发板 + STC89C52 + 11.0592M晶振 + Keil C51 V9.0 
+  18          *       
+  19          *               淘宝地址：http://shop104208028.taobao.com/
+  20          *               QQ      : 10903659
+  21          *               QQ群    ：336397723  336398729   336398900
+  22          ******************************************************************/
+  23          
+  24          #include "lcd1602.h"
+  25          
+  26          #define uchar unsigned char 
+  27          #define uint  unsigned int
+  28          #define DataPort P0
+  29          
+  30          sbit wx = P2^6;
+  31          sbit dx = P2^7;
+  32          sbit beep = P2^2;
+  33          sbit DS_Data = P2^0;
+  34          
+  35          unsigned char code table[] = {0x3f, 0x06, 0x5b, 0x4f, 0x66, 0x6d, 0x7d, 0x07, 0x7f, 0x6f, 0x77, 0x7c, 0x39
+             -, 0x5e, 0x79, 0x71};
+  36          unsigned char code str1[] = "Now is:         ";
+  37          unsigned char code str2[] = "Limit is:       ";
+  38           
+  39          /*
+  40          * 功  能：清除数码管的显示内容
+  41          * 参  数：无
+  42          * 返回值：无
+  43          */
+  44          void SMG_CLR( void )
+  45          {
+  46   1              P0 = 0x00;              //发送要显示的段码
+  47   1              dx = 1;
+  48   1              dx = 0;
+  49   1              
+  50   1              P0 = 0x00;              //发送要显示的位码,只显示一位数字
+  51   1              wx = 1;
+  52   1              wx = 0;
+  53   1      }
+C51 COMPILER V9.00   MAIN                                                                  11/27/2013 00:49:39 PAGE 2   
+
+  54          
+  55          /*
+  56          * 功  能：DS18B20 复位
+  57          * 参  数：无
+  58          * 返回值：无
+  59          */
+  60          void DS18B20_Reset(void)
+  61          {
+  62   1              unsigned int i;
+  63   1      
+  64   1              DS_Data = 0;
+  65   1              i = 103;
+  66   1              while(i>0)      i--;
+  67   1      
+  68   1              DS_Data = 1;
+  69   1              i = 4;
+  70   1              while(i>0)      i--;
+  71   1      }
+  72          
+  73          /*
+  74          * 功  能：DS18B20 读取一位数据
+  75          * 参  数：无
+  76          * 返回值：读取的位
+  77          */
+  78          bit DS18B20_ReadBit(void)       
+  79          {
+  80   1              unsigned int i;
+  81   1              bit dat;
+  82   1      
+  83   1              DS_Data = 0;
+  84   1              i++;
+  85   1              DS_Data = 1;
+  86   1              i++;
+  87   1              i++;
+  88   1              dat = DS_Data;
+  89   1      
+  90   1              i = 8;
+  91   1              while(i>0)      i--;
+  92   1      
+  93   1              return (dat);
+  94   1      }
+  95          
+  96          /*
+  97          * 功  能：DS18B20 读取一个字节
+  98          * 参  数：无
+  99          * 返回值：读取的字节
+ 100          */
+ 101          uchar DS18B20_ReadByte(void)    
+ 102          {
+ 103   1              unsigned char i,j,dat;
+ 104   1              
+ 105   1              dat=0;
+ 106   1              for(i=1; i<=8; i++)
+ 107   1              {
+ 108   2                      j = DS18B20_ReadBit();
+ 109   2                      dat=(j<<7)|(dat>>1);   //读出的数据最低位在最前面，这样刚好一个字节在DAT里
+ 110   2              }
+ 111   1      
+ 112   1              return(dat);
+ 113   1      }
+ 114          
+ 115          /*
+C51 COMPILER V9.00   MAIN                                                                  11/27/2013 00:49:39 PAGE 3   
+
+ 116          * 功  能：DS18B20 写入一个字节
+ 117          * 参  数：要写入的字节
+ 118          * 返回值：无
+ 119          */
+ 120          void DS18B20_WriteByte(unsigned char dat)       
+ 121          {
+ 122   1              unsigned int i;
+ 123   1              unsigned char j, k;
+ 124   1              bit b;
+ 125   1      
+ 126   1              k = dat;
+ 127   1      
+ 128   1              for(j=1; j<=8; j++)
+ 129   1              {
+ 130   2                      b = k & 0x01;
+ 131   2                      k = k >> 1;
+ 132   2                      if(b)                                   //write 1
+ 133   2                      {
+ 134   3                              DS_Data = 0;
+ 135   3                              i++; i++;
+ 136   3                              DS_Data = 1;
+ 137   3                              i = 8;
+ 138   3                              while(i>0) i--;
+ 139   3                      }
+ 140   2                      else
+ 141   2                      {
+ 142   3                              DS_Data = 0;                    //write 0
+ 143   3                              i = 8;
+ 144   3                              while(i>0)      i--;
+ 145   3                              DS_Data = 1;
+ 146   3                              i++; i++;
+ 147   3                      }
+ 148   2              
+ 149   2              }
+ 150   1      }
+ 151          
+ 152          /*
+ 153          * 功  能：DS18B20 开始温度转换
+ 154          * 参  数：无
+ 155          * 返回值：无
+ 156          */
+ 157          void DS18B20_Change(void)       
+ 158          {
+ 159   1              DS18B20_Reset();
+ 160   1              DelayMs(5);
+ 161   1              DS18B20_WriteByte(0xcc);         // address all drivers on bus
+ 162   1              DS18B20_WriteByte(0x44);        //  initiates a single temperature conversion  
+ 163   1      }
+ 164          
+ 165          /*
+ 166          * 功  能：DS18B20 得到温度值
+ 167          * 参  数：无
+ 168          * 返回值：无
+ 169          */
+ 170          int DS18B20_GetTemp()                   //get the temperature
+ 171          {
+ 172   1              float t;
+ 173   1              unsigned char a, b;
+ 174   1              int temp;
+ 175   1              
+ 176   1              DS18B20_Reset();
+ 177   1              DelayMs(5);
+C51 COMPILER V9.00   MAIN                                                                  11/27/2013 00:49:39 PAGE 4   
+
+ 178   1              DS18B20_WriteByte(0xcc);
+ 179   1              DS18B20_WriteByte(0xbe);
+ 180   1              a=DS18B20_ReadByte();
+ 181   1              b=DS18B20_ReadByte();
+ 182   1              
+ 183   1              temp = b;
+ 184   1              temp <<= 8;                             //two byte  compose a int variable
+ 185   1              temp = temp|a;
+ 186   1              t = temp*0.0625;
+ 187   1              temp = t*10+0.5;
+ 188   1              
+ 189   1              return temp;
+ 190   1      }
+ 191          
+ 192          
+ 193          void main()
+ 194          {
+ 195   1              int temp;                                                                
+ 196   1              int limit = 330;                                                //报警温度*10
+ 197   1              unsigned char d1, d2, d3;
+ 198   1      
+ 199   1              SMG_CLR();
+ 200   1              LCD1602_Init();
+ 201   1              LCD1602_ShowString (0, str1);
+ 202   1              LCD1602_ShowString (1, str2);
+ 203   1      
+ 204   1              LCD1602_ShowString (1, str2);           //显示报警温度
+ 205   1                       
+ 206   1              d1 = limit / 100;                                               
+ 207   1              d2 = (limit % 100) / 10;
+ 208   1              d3 = limit % 10;                                        //计算出十位、个位和小数位
+ 209   1              if(limit<0)                                                     //温度小于0度
+ 210   1              {                  
+ 211   2                      LCD1602_ShowChar(0x19, '-');    //显示负号
+ 212   2              }
+ 213   1              LCD1602_ShowChar(0x1A, '0'+d1);         //显示十位
+ 214   1              LCD1602_ShowChar(0x1B, '0'+d2);         //显示个位，减0x80是为了能显示小数点
+ 215   1              LCD1602_ShowChar(0x1C, '.');
+ 216   1              LCD1602_ShowChar(0x1D, '0'+d3);         //显示小数位
+ 217   1      
+ 218   1              while(1)
+ 219   1              {
+ 220   2                      DS18B20_Change();                                               //开始转换
+ 221   2      
+ 222   2                      temp = DS18B20_GetTemp();                               //得到的温度保存在temp中
+ 223   2      
+ 224   2                      d1 = temp / 100;
+ 225   2                      d2 = (temp % 100) / 10;
+ 226   2                      d3 = temp % 10;                                                 //计算出十位、个位和小数位
+ 227   2      
+ 228   2                      if(temp<0)                                                              //温度小于0度
+ 229   2                      {                  
+ 230   3                              LCD1602_ShowChar(0x09, '-');            //显示负号
+ 231   3                      }
+ 232   2                      LCD1602_ShowChar(0x0A, '0'+d1);                 //显示十位
+ 233   2                      LCD1602_ShowChar(0x0B, '0'+d2);                 //显示个位，减0x80是为了能显示小数点
+ 234   2                      LCD1602_ShowChar(0x0C, '.');
+ 235   2                      LCD1602_ShowChar(0x0D, '0'+d3);                 //显示小数位
+ 236   2      
+ 237   2                      if(temp > limit)                                                //温度过高
+ 238   2                      {
+ 239   3                              beep = 0;
+C51 COMPILER V9.00   MAIN                                                                  11/27/2013 00:49:39 PAGE 5   
+
+ 240   3                              DelayMs(100);   
+ 241   3                              beep = 1;                                                                               
+ 242   3                      }
+ 243   2              }
+ 244   1      }
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =    582    ----
+   CONSTANT SIZE    =     50    ----
+   XDATA SIZE       =   ----    ----
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =   ----      11
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =   ----       2
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)

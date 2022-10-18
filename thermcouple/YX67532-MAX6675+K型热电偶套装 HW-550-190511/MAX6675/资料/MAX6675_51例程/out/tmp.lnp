@@ -1,0 +1,4 @@
+"..\out\STARTUP.obj",
+"..\out\main.obj" 
+TO "..\out\tmp" 
+PRINT("..\listing\tmp.m51") RAMSIZE(256) 

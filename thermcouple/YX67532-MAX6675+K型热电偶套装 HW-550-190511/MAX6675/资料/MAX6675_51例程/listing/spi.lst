@@ -1,0 +1,90 @@
+C51 COMPILER V9.00   SPI                                                                   06/20/2013 12:37:44 PAGE 1   
+
+
+C51 COMPILER V9.00, COMPILATION OF MODULE SPI
+OBJECT MODULE PLACED IN ..\out\spi.obj
+COMPILER INVOKED BY: D:\KeilC51\C51\BIN\C51.EXE ..\user\spi.c BROWSE DEBUG OBJECTEXTEND PRINT(..\listing\spi.lst) OBJECT
+                    -(..\out\spi.obj)
+
+line level    source
+
+   1          
+   2          #include <REGX52.H>
+   3          
+   4          #define uchar unsigned char
+   5          #define uint  unsigned int
+   6          #define SDI P2_7
+   7          #define SDO P2_6
+   8          #define SCLK P2_5
+   9          #define CS P0_4
+  10          
+  11          void delay(uchar i)
+  12          {
+  13   1              ///
+  14   1              while(i--);
+  15   1      }
+  16          uchar SPI_ReadByte()
+  17          {
+  18   1              ///
+  19   1              uchar i,d;
+  20   1              i=8;
+  21   1              d=0;
+  22   1              while(i--)
+  23   1              {
+  24   2                      SCLK=1;
+  25   2                      delay(1);
+  26   2                      if(SDO==1)
+  27   2                              d++;
+  28   2                      SCLK=0;
+  29   2                      d=d<<1;
+  30   2              }
+  31   1              return d;
+  32   1      } 
+  33          
+  34          void SPI_WriteByte(uchar d)
+  35          {
+  36   1              ///
+  37   1              uchar i;
+  38   1              while(i--)
+  39   1              {
+  40   2                      ///
+  41   2                      SDI=d&0x80;
+  42   2                      SCLK=1;
+  43   2                      delay(1);
+  44   2                      d=d<<1;
+  45   2                      SCLK=0;
+  46   2                      delay(1);
+  47   2              }
+  48   1              SDI=0;
+  49   1      }
+  50          
+  51          void CS5528_Init(void)
+  52          {
+  53   1              ///
+  54   1              uchar c=15;
+C51 COMPILER V9.00   SPI                                                                   06/20/2013 12:37:44 PAGE 2   
+
+  55   1              CS=0;
+  56   1              while(c--)
+  57   1                      SPI_WriteByte(0xff);
+  58   1              SPI_WriteByte(0xfe);
+  59   1      
+  60   1      }
+  61          
+  62          
+  63          
+  64          
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =     97    ----
+   CONSTANT SIZE    =   ----    ----
+   XDATA SIZE       =   ----    ----
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =   ----       1
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =   ----    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)

@@ -1,0 +1,5 @@
+"..\out\STARTUP.obj",
+"..\out\main.obj",
+"..\out\lcd1602.obj" 
+TO "..\out\DS18B20 读取序列号" 
+PRINT("..\listing\DS18B20 读取序列号.m51") RAMSIZE(256) 

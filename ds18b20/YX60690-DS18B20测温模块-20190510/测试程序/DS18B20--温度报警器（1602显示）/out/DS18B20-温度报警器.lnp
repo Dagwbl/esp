@@ -1,0 +1,5 @@
+"..\out\STARTUP.obj",
+"..\out\main.obj",
+"..\out\lcd1602.obj" 
+TO "..\out\DS18B20-温度报警器" 
+PRINT("..\listing\DS18B20-温度报警器.m51") RAMSIZE(256) 

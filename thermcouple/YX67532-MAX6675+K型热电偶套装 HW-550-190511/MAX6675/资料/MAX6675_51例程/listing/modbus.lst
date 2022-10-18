@@ -1,0 +1,64 @@
+C51 COMPILER V9.00   MODBUS                                                                06/20/2013 12:34:23 PAGE 1   
+
+
+C51 COMPILER V9.00, COMPILATION OF MODULE MODBUS
+OBJECT MODULE PLACED IN ..\out\modbus.obj
+COMPILER INVOKED BY: D:\KeilC51\C51\BIN\C51.EXE ..\user\modbus.c BROWSE DEBUG OBJECTEXTEND PRINT(..\listing\modbus.lst) 
+                    -OBJECT(..\out\modbus.obj)
+
+line level    source
+
+   1          #include <REGX52.H>
+   2          
+   3          
+   4          #include "crc16.h"
+   5          void modbus_caiji(unsigned char sbdz,unsigned int qsdz,unsigned int cjsl,unsigned char *rt)
+   6          {
+   7   1              unsigned char  c[8],t[9];
+   8   1              unsigned char crch,crcl,i;      
+   9   1              unsigned int  ii;
+  10   1              c[0]=sbdz;
+  11   1              c[1]=0x03;
+  12   1              c[2]=(unsigned char)(qsdz>>8);
+  13   1              c[3]=(unsigned char)(qsdz&0x00ff);
+  14   1              c[4]=(unsigned char)(cjsl>>8);
+  15   1              c[5]=(unsigned char)(cjsl&0x00ff); 
+  16   1              crc16(c,6,&crch,&crcl);                                            //生成crc16校验码
+  17   1              c[6]=crcl;
+  18   1              c[7]=crch;
+  19   1              P15=0;
+*** ERROR C202 IN LINE 19 OF ..\USER\MODBUS.C: 'P15': undefined identifier
+  20   1              for(i=0;i<8;i++)                                                           //发送命令
+  21   1              {
+  22   2                      SBUF=c[i];
+  23   2                      while(!TI);
+  24   2                              TI=0;
+  25   2              }
+  26   1              /////////////////////////开始接收
+  27   1              i=50;while(i--);
+  28   1              P15=1;
+*** ERROR C202 IN LINE 28 OF ..\USER\MODBUS.C: 'P15': undefined identifier
+  29   1              //RI=0; 
+  30   1              ii=0xffff;
+  31   1              for(i=0;i<9;i++)
+  32   1              {
+  33   2                      while((!RI)&&(ii--));
+  34   2                      if(!RI)
+  35   2                              t[i]=0x00;
+  36   2                      else
+  37   2                              t[i]=SBUF;
+  38   2                      RI=0;
+  39   2                      P07=1;P07=0;      //喂狗
+*** ERROR C202 IN LINE 39 OF ..\USER\MODBUS.C: 'P07': undefined identifier
+*** ERROR C202 IN LINE 39 OF ..\USER\MODBUS.C: 'P07': undefined identifier
+  40   2                      ii=0x7ff;
+  41   2              }
+  42   1              crc16(t,9,&crch,&crcl);
+  43   1              if((crch==0x00)&&(crcl==0x00))//验证通过
+  44   1                      *rt=t[3];
+  45   1                      *(rt+1)=*(t+4);
+  46   1                      *(rt+2)=*(t+5);
+  47   1                      *(rt+3)=*(t+6);
+  48   1      }
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  4 ERROR(S)

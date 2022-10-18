@@ -1,0 +1,419 @@
+C51 COMPILER V9.00   MAIN                                                                  11/27/2013 00:48:45 PAGE 1   
+
+
+C51 COMPILER V9.00, COMPILATION OF MODULE MAIN
+OBJECT MODULE PLACED IN ..\out\main.obj
+COMPILER INVOKED BY: d:\Keil\C51\BIN\C51.EXE ..\user\main.c BROWSE DEBUG OBJECTEXTEND PRINT(..\listing\main.lst) OBJECT(
+                    -..\out\main.obj)
+
+line level    source
+
+   1          /**********************TS-51A单片机开发板例程************************
+   2          *               Copyright (c) 2013,52探索 单片机开发板
+   3          *               All rights reserved
+   4          *       
+   5          *               文件名称：led.c
+   6          *               功能描述：读取DS18B20的64位序列码并显示在1602液晶上
+   7          *                                       如果读取正确结果，则在液晶第一行显示DS18B20 OK，第二行显示序列码
+   8          *                                       如果读取失败，则在液晶上显示DS18B20  ERR0R PLEASE CHECK 
+   9          * 
+  10          *               当前版本：1.0
+  11          *               作    者：52探索
+  12          *       完成日期：2013-5-29
+  13          *
+  14          *               取代版本：无
+  15          *       改进内容：无
+  16          *
+  17          *               使用环境：TS-51A开发板 + STC89C52 + 11.0592M晶振 + Keil C51 V9.0 
+  18          *       
+  19          *               淘宝地址：http://shop104208028.taobao.com/
+  20          *               QQ      : 10903659
+  21          *               QQ群    ：336397723  336398729   336398900
+  22          ******************************************************************/
+  23          
+  24          ////#include <REGX52.H>
+  25          //#include <intrins.h>
+  26          #include "lcd1602.h"
+  27          
+  28          #define uchar unsigned char 
+  29          #define uint  unsigned int
+  30          #define DataPort P0
+  31          
+  32          sbit wx = P2^6;
+  33          sbit dx = P2^7;
+  34          sbit BEEP = P2^2;
+  35          sbit DS_Data = P2^0;
+  36          
+  37          bit presence;
+  38          unsigned char code table[] = {0x3f, 0x06, 0x5b, 0x4f, 0x66, 0x6d, 0x7d, 0x07, 0x7f, 0x6f, 0x77, 0x7c, 0x39
+             -, 0x5e, 0x79, 0x71};
+  39          unsigned char code  str1[ ] = {" DS18B20  ERR0R "};
+  40          unsigned char code  str2[ ] = {"  PLEASE CHECK  "};
+  41          unsigned char code  str3[ ] = {"   DS18B20 OK   "};
+  42          unsigned char str4[ ] = {"                "};
+  43          unsigned char RomCode[8]; 
+  44          /*
+  45          * 功  能：清除数码管的显示内容
+  46          * 参  数：无
+  47          * 返回值：无
+  48          */
+  49          void SMG_CLR( void )
+  50          {
+  51   1              P0 = 0x00;              //发送要显示的段码
+  52   1              dx = 1;
+  53   1              dx = 0;
+C51 COMPILER V9.00   MAIN                                                                  11/27/2013 00:48:45 PAGE 2   
+
+  54   1              
+  55   1              P0 = 0x00;              //发送要显示的位码,只显示一位数字
+  56   1              wx = 1;
+  57   1              wx = 0;
+  58   1      }
+  59          
+  60          void Delay(unsigned int num)
+  61          {
+  62   1        while( --num );
+  63   1      }
+  64          /*
+  65          * 功  能：DS18B20 复位
+  66          * 参  数：无
+  67          * 返回值：无
+  68          */
+  69          void DS18B20_Reset(void)
+  70          {  
+  71   1           DS_Data = 1;      //DQ复位
+  72   1           Delay(8);    //稍做延时
+  73   1      
+  74   1           DS_Data = 0;      //将DQ拉低
+  75   1           Delay(90);   //精确延时 大于 480us
+  76   1      
+  77   1           DS_Data = 1;       //拉高总线
+  78   1           Delay(8);
+  79   1      
+  80   1           presence = DS_Data;    //读取存在信号
+  81   1           Delay(100);
+  82   1           DS_Data = 1; 
+  83   1           
+  84   1      //     return(presence); //返回信号，0=presence,1= no presence
+  85   1      }
+  86          
+  87          /*
+  88          * 功  能：DS18B20 读取一位数据
+  89          * 参  数：无
+  90          * 返回值：读取的位
+  91          */
+  92          bit DS18B20_ReadBit(void)       
+  93          {
+  94   1              unsigned int i;
+  95   1              bit dat;
+  96   1      
+  97   1              DS_Data = 0;
+  98   1              i++;
+  99   1              DS_Data = 1;
+ 100   1              i++;
+ 101   1              i++;
+ 102   1              dat = DS_Data;
+ 103   1      
+ 104   1              i = 8;
+ 105   1              while(i>0)      i--;
+ 106   1      
+ 107   1              return (dat);
+ 108   1      }
+ 109          
+ 110          /*
+ 111          * 功  能：DS18B20 读取一个字节
+ 112          * 参  数：无
+ 113          * 返回值：读取的字节
+ 114          */
+ 115          uchar DS18B20_ReadByte(void)    
+C51 COMPILER V9.00   MAIN                                                                  11/27/2013 00:48:45 PAGE 3   
+
+ 116          {
+ 117   1              unsigned char i,j,dat;
+ 118   1              
+ 119   1              dat=0;
+ 120   1              for(i=1; i<=8; i++)
+ 121   1              {
+ 122   2                      j = DS18B20_ReadBit();
+ 123   2                      dat=(j<<7)|(dat>>1);   //读出的数据最低位在最前面，这样刚好一个字节在DAT里
+ 124   2              }
+ 125   1      
+ 126   1              return(dat);
+ 127   1      }
+ 128          
+ 129          /*
+ 130          * 功  能：DS18B20 写入一个字节
+ 131          * 参  数：要写入的字节
+ 132          * 返回值：无
+ 133          */
+ 134          void DS18B20_WriteByte(unsigned char dat)       
+ 135          {
+ 136   1              unsigned int i;
+ 137   1              unsigned char j, k;
+ 138   1              bit b;
+ 139   1      
+ 140   1              k = dat;
+ 141   1      
+ 142   1              for(j=1; j<=8; j++)
+ 143   1              {
+ 144   2                      b = k & 0x01;
+ 145   2                      k = k >> 1;
+ 146   2                      if(b)                                   //write 1
+ 147   2                      {
+ 148   3                              DS_Data = 0;
+ 149   3                              i++; i++;
+ 150   3                              DS_Data = 1;
+ 151   3                              i = 8;
+ 152   3                              while(i>0) i--;
+ 153   3                      }
+ 154   2                      else
+ 155   2                      {
+ 156   3                              DS_Data = 0;                    //write 0
+ 157   3                              i = 8;
+ 158   3                              while(i>0)      i--;
+ 159   3                              DS_Data = 1;
+ 160   3                              i++; i++;
+ 161   3                      }
+ 162   2              
+ 163   2              }
+ 164   1      }
+ 165          
+ 166          /*
+ 167          * 功  能：DS18B20 开始温度转换
+ 168          * 参  数：无
+ 169          * 返回值：无
+ 170          */
+ 171          void DS18B20_Change(void)       
+ 172          {
+ 173   1              DS18B20_Reset();
+ 174   1              DelayMs(5);
+ 175   1              DS18B20_WriteByte(0xcc);         // address all drivers on bus
+ 176   1              DS18B20_WriteByte(0x44);        //  initiates a single temperature conversion  
+ 177   1      }
+C51 COMPILER V9.00   MAIN                                                                  11/27/2013 00:48:45 PAGE 4   
+
+ 178          
+ 179          /*
+ 180          * 功  能：DS18B20 得到温度值
+ 181          * 参  数：无
+ 182          * 返回值：带符号的温度值
+ 183          */
+ 184          int DS18B20_GetTemp()                   //get the temperature
+ 185          {
+ 186   1              float t;
+ 187   1              unsigned char a, b;
+ 188   1              int temp;
+ 189   1              
+ 190   1              DS18B20_Reset();
+ 191   1              DelayMs(5);
+ 192   1              DS18B20_WriteByte(0xcc);
+ 193   1              DS18B20_WriteByte(0xbe);
+ 194   1              a=DS18B20_ReadByte();
+ 195   1              b=DS18B20_ReadByte();
+ 196   1              
+ 197   1              temp = b;
+ 198   1              temp <<= 8;                             //two byte  compose a int variable
+ 199   1              temp = temp|a;
+ 200   1              t = temp*0.0625;
+ 201   1              temp = t*10+0.5;
+ 202   1              
+ 203   1              return temp;
+ 204   1      }
+ 205          
+ 206          /*
+ 207          * 功  能：DS18B20 读取序列号
+ 208          * 参  数：无
+ 209          * 返回值：无
+ 210          */
+ 211          void DS18B20_ReadSN(void)
+ 212          {
+ 213   1              unsigned char i;
+ 214   1      
+ 215   1              DS18B20_Reset();        
+ 216   1              DS18B20_WriteByte(0x33);                // 读序列码的操作
+ 217   1      
+ 218   1              for (i=0; i<8; i++)
+ 219   1              {
+ 220   2                      RomCode[i] = DS18B20_ReadByte() ; 
+ 221   2              }
+ 222   1      }
+ 223          
+ 224          /*
+ 225          * 功  能：DS18B20的CRC8校验
+ 226          * 参  数：无
+ 227          * 返回值：CRC结果
+ 228          */
+ 229          unsigned char DS18B20_CRC8(void) 
+ 230          { 
+ 231   1              unsigned char i, j, CRCBuf,CRC;
+ 232   1              
+ 233   1              CRC = 0;
+ 234   1      
+ 235   1              for(j=0; j<8; j++)
+ 236   1              {
+ 237   2                      CRCBuf = RomCode[j];
+ 238   2      
+ 239   2                      for(i=0; i<8; i++) 
+C51 COMPILER V9.00   MAIN                                                                  11/27/2013 00:48:45 PAGE 5   
+
+ 240   2                      { 
+ 241   3                              if(((CRC^CRCBuf) & 0x01) == 0)
+ 242   3                              { 
+ 243   4                                      CRC >>= 1; 
+ 244   4                              }
+ 245   3                              else
+ 246   3                              { 
+ 247   4                                      CRC ^= 0x18;   //CRC=X8+X5+X4+1
+ 248   4                                      CRC >>= 1; 
+ 249   4                                      CRC |= 0x80; 
+ 250   4                              }         
+ 251   3                              CRCBuf >>= 1;       
+ 252   3                      }
+ 253   2              }
+ 254   1              return CRC;     
+ 255   1      }
+ 256          
+ 257          /*
+ 258          * 功  能：把读取的序列号转换成可以在1602上显示的字符串
+ 259          * 参  数：无
+ 260          * 返回值：无
+ 261          */
+ 262          void Conv_RomCode(void)
+ 263          {
+ 264   1              unsigned char i, j=0, k, t;
+ 265   1              
+ 266   1              for(i=0;i<8;i++)
+ 267   1              {
+ 268   2                      k = RomCode[i];
+ 269   2                      
+ 270   2                      t = k>>4;
+ 271   2                      if(t > 9)
+ 272   2                      {
+ 273   3                              t = t + 0x37;
+ 274   3                      }
+ 275   2                      else
+ 276   2                      {
+ 277   3                              t = t + 0x30;
+ 278   3                      }
+ 279   2                      str4[j++] = t;
+ 280   2                      
+ 281   2                      t = k & 0x0f;
+ 282   2                      if(t > 9)
+ 283   2                      {
+ 284   3                              t = t + 0x37;
+ 285   3                      }
+ 286   2                      else 
+ 287   2                      {
+ 288   3                              t = t + 0x30;
+ 289   3                      }
+ 290   2                      
+ 291   2                      str4[j++] = t;
+ 292   2              }
+ 293   1      }        
+ 294          
+ 295          /*
+ 296          * 功  能：蜂鸣器报警
+ 297          * 参  数：无
+ 298          * 返回值：无
+ 299          */
+ 300          void Beep(void)
+ 301          {
+C51 COMPILER V9.00   MAIN                                                                  11/27/2013 00:48:45 PAGE 6   
+
+ 302   1              unsigned char i;
+ 303   1      
+ 304   1              for (i=0; i<100; i++)
+ 305   1              {
+ 306   2                      DelayMs(1);
+ 307   2                      BEEP = !BEEP;                           //BEEP取反
+ 308   2              } 
+ 309   1              BEEP = 1;                               //关闭蜂鸣器
+ 310   1      }
+ 311          
+ 312          
+ 313          /*
+ 314          * 功  能：显示正确菜单
+ 315          * 参  数：无
+ 316          * 返回值：无
+ 317          */
+ 318          void  Ok_Menu ()
+ 319          { 
+ 320   1              LCD1602_ShowString(0, str3);
+ 321   1      
+ 322   1              LCD1602_ShowString(1, str4);
+ 323   1      }
+ 324          
+ 325          /*
+ 326          * 功  能：显示错误菜单
+ 327          * 参  数：无
+ 328          * 返回值：无
+ 329          */
+ 330          void  Error_Menu (void)
+ 331          {
+ 332   1              LCD1602_ShowString(0, str1);
+ 333   1              
+ 334   1              LCD1602_ShowString(1, str2);
+ 335   1      }
+ 336          
+ 337          
+ 338          void main()
+ 339          {
+ 340   1              unsigned char CRC;
+ 341   1      
+ 342   1              SMG_CLR();
+ 343   1              LCD1602_Init();
+ 344   1      
+ 345   1              DS18B20_Change();       
+ 346   1              
+ 347   1              DS18B20_GetTemp();
+ 348   1      
+ 349   1              while(1)
+ 350   1              {
+ 351   2                      DS18B20_ReadSN();       //读取64位序列码
+ 352   2                      CRC = DS18B20_CRC8();   //CRC效验
+ 353   2      
+ 354   2                      if(CRC == 0)            //CRC效验正确
+ 355   2                      {
+ 356   3                              Conv_RomCode();         //显示64位序列码 
+ 357   3                              Ok_Menu ();
+ 358   3                              Beep();
+ 359   3                              DelayMs(1000);                  
+ 360   3                      }
+ 361   2                      else                                    //CRC失败的显示
+ 362   2                      {
+ 363   3                              LCD1602_ShowString(1, " CRC is wrong . ");
+C51 COMPILER V9.00   MAIN                                                                  11/27/2013 00:48:45 PAGE 7   
+
+ 364   3                              DelayMs(1000);  
+ 365   3                      }
+ 366   2                      while(!presence)                //检查DS18B20是否存在
+ 367   2                      {                                               //如果存在就会在这里死循环，
+ 368   3                              DS18B20_Reset();        //如果DS18B20不存在，则向下运行
+ 369   3                              DelayMs(1000);
+ 370   3                      }
+ 371   2                              
+ 372   2                      DS18B20_Reset();                //检查DS18B20是否存在   
+ 373   2                      while(presence)                 //如果不存在就会在这里死循环
+ 374   2                      {                                               //如果DS18B20存在，则向下运行
+ 375   3                              Error_Menu (); 
+ 376   3                              DS18B20_Reset();
+ 377   3                              Beep();
+ 378   3                              DelayMs(1000);
+ 379   3      
+ 380   3                      }
+ 381   2              }
+ 382   1      }
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =    595    ----
+   CONSTANT SIZE    =     84    ----
+   XDATA SIZE       =   ----    ----
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =     25       5
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =      1       2
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)

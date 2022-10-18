@@ -1,0 +1,164 @@
+C51 COMPILER V9.00   MAIN                                                                  06/26/2013 18:47:34 PAGE 1   
+
+
+C51 COMPILER V9.00, COMPILATION OF MODULE MAIN
+OBJECT MODULE PLACED IN ..\out\main.obj
+COMPILER INVOKED BY: d:\Keil c51\C51\BIN\C51.EXE ..\user\main.c BROWSE DEBUG OBJECTEXTEND PRINT(..\listing\main.lst) OBJ
+                    -ECT(..\out\main.obj)
+
+line level    source
+
+   1          #include <REGX52.H>
+   2          #include "intrins.h"                    //_nop_();延时函数用
+   3          
+   4          #define uchar unsigned char
+   5          #define uint  unsigned int
+   6          
+   7          sbit  SO  = P3^6;                               //P1.0口与SO相连
+   8          sbit  SCK = P3^4;                               //P1.1口与SCK相连
+   9          sbit  CS  = P3^5;                               //P1.2口与CS相连
+  10          
+  11          sbit wx = P2^6;
+  12          sbit dx = P2^7;
+  13          
+  14          const unsigned char DevID = 1;          //本机设备ID
+  15          unsigned char buffer;                   //串口接收缓冲区
+  16          unsigned char rcv_buffer[20];
+  17          unsigned char send_buffer[20];
+  18          unsigned char flag_ok = 0;              //接收完毕的标识
+  19          unsigned int MAX6675_Temp;
+  20          unsigned char Flag_connect;
+  21          unsigned char CRCH,CRCL;
+  22          unsigned char wd[2];                    //wd[]：BCD码的温度
+  23          unsigned char flag_dis;                 //显示刷新的标识
+  24          
+  25          unsigned char dis[4] = { 0x00, 0x00, 0x00,0x00 };
+  26          unsigned char code SMG[] = {0xc0, 0xf9, 0xa4, 0xb0, 0x99, 0x92, 0x82, 0xf8, 0x80, 0x90, 0x88, 0x83, 0xc6, 
+             -0xa1, 0x86, 0x8e};
+  27          
+  28          unsigned int MAX6675_ReadReg(void)
+  29          { 
+  30   1              unsigned char i;   
+  31   1              unsigned int dat;
+  32   1               
+  33   1              i   = 0;   
+  34   1              dat = 0;   
+  35   1              
+  36   1              CS  = 0; 
+  37   1              SCK = 0;     
+  38   1              
+  39   1              for(i=0; i<16; i++)             //get D15-D0 from 6675  
+  40   1              {      
+  41   2                      SCK = 1;     
+  42   2                      dat = dat<<1;    
+  43   2                      if( SO==1 )   
+  44   2                              dat = dat|0x01;   
+  45   2                      SCK = 0;    
+  46   2              } 
+  47   1              CS = 1;   
+  48   1                
+  49   1              return dat;   
+  50   1      }  
+  51          /*
+  52          * 功  能：延时，若干毫秒
+  53          * 参  数：毫秒数
+C51 COMPILER V9.00   MAIN                                                                  06/26/2013 18:47:34 PAGE 2   
+
+  54          * 返回值：无
+  55          */
+  56          void DelayMs(unsigned int i)    //一个延时函数，这个函数在11.0592M晶振下的延时时间大概为1ms
+  57          {
+  58   1              unsigned int j,k;
+  59   1      
+  60   1              for(j=i; j>0; j--)
+  61   1                      for(k=114; k>0; k--);
+  62   1      }
+  63          /*
+  64          * 功  能：数码管在指定的位置显示指定的字符
+  65          * 参  数：place:要显示的位置，num:要显示的字符
+  66          * 返回值：无
+  67          */
+  68          void SMG_DisChar(unsigned char place, unsigned char num)
+  69          {
+  70   1              unsigned char i;
+  71   1      
+  72   1              i = 0x80 >> place;              //根据显示位置选择相应的数码管
+  73   1      
+  74   1              P0 = SMG[num];          //发送要显示的段码
+  75   1              dx = 1;
+  76   1              dx = 0;
+  77   1              
+  78   1              P0 = i;                                 //发送要显示的位码,只显示一位数字
+  79   1              wx = 1;
+  80   1              wx = 0;
+  81   1      
+  82   1              DelayMs(1);     
+  83   1      }
+  84           
+  85          void Display(unsigned int temp)
+  86          {
+  87   1              if(Flag_connect==0)                     //Flag_connect为0 表示热电偶已连接，这时显示温度
+  88   1              {
+  89   2                      if(temp > 999)
+  90   2                      {
+  91   3                              SMG_DisChar(3,temp/1000);
+  92   3                      }
+  93   2                      if(temp > 99)
+  94   2                      {
+  95   3                              SMG_DisChar(2,(temp%1000)/100);
+  96   3                      }
+  97   2                      if(temp > 9)
+  98   2                      {
+  99   3                              SMG_DisChar(1,(temp/10)%10);
+ 100   3                      }
+ 101   2                      SMG_DisChar(0,temp%10);
+ 102   2              }
+ 103   1              else                                            //Flag_connect为1表示 热电偶未连接，这时显示FFFF
+ 104   1              {
+ 105   2                      SMG_DisChar(3, 0x0F);
+ 106   2                      SMG_DisChar(2, 0x0F);
+ 107   2                      SMG_DisChar(1, 0x0F);
+ 108   2                      SMG_DisChar(0, 0x0F);
+ 109   2                      
+ 110   2              }
+ 111   1      }
+ 112          
+ 113          void main(void)
+ 114          {
+ 115   1              unsigned char cnt = 11;
+C51 COMPILER V9.00   MAIN                                                                  06/26/2013 18:47:34 PAGE 3   
+
+ 116   1              unsigned int t;
+ 117   1      
+ 118   1              while(1)
+ 119   1              {
+ 120   2                      t=MAX6675_ReadReg();
+ 121   2      
+ 122   2                      Flag_connect=t&0x04;                    //读出数据的D2位是热电偶掉线标志位，该位为1表示掉线，该位为0表示连接
+ 123   2                      Flag_connect=Flag_connect>>2;   //MAX6675是否在线
+ 124   2      
+ 125   2                      t = t<<1;                                               //读出来的数据的D3~D14是温度值
+ 126   2                      t = t>>4;
+ 127   2                      MAX6675_Temp = t/4;                             //测得的温度单位是0.25，所以要乘以0.25（即除以4）才能得到以度为单位的温度值
+ 128   2                      
+ 129   2                      for(t=0; t<200; t++)                    //显示温度
+ 130   2                      {  
+ 131   3                              Display(MAX6675_Temp);
+ 132   3                      }
+ 133   2      
+ 134   2              }
+ 135   1      }
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =    337    ----
+   CONSTANT SIZE    =     16    ----
+   XDATA SIZE       =   ----    ----
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =     55       3
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =   ----    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)

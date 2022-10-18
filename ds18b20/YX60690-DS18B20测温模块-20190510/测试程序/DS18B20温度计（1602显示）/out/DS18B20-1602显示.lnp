@@ -1,0 +1,5 @@
+"..\out\STARTUP.obj",
+"..\out\main.obj",
+"..\out\lcd1602.obj" 
+TO "..\out\DS18B20-1602œ‘ æ" 
+PRINT("..\listing\DS18B20-1602œ‘ æ.m51") RAMSIZE(256) 
