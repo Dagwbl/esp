@@ -7,10 +7,11 @@ import machine
 # time.sleep(3)
 # machine.reset() # 每次运行重启以清空变量，特别危险，容易导致无限重启
 # 基础信息配置 后续只需更改此处代码即可实现复用
-MODEL = "fxfs"  # thermocouple opt101 ds18b20 lm35dz fxfs
-SENSOR = MODEL + "-1"
-UNIT = "None"  #Aq Celsius
-COORDS = "testnode" #node coords
+COORDS = "gas" #node coords
+
+MODEL = "opt101"  # thermocouple opt101 ds18b20 lm35dz fxfs
+SENSOR = COORDS + "-" + MODEL + "-1"
+UNIT = "Aq"  #Aq Celsius
 
 SSID = 'LonelyGirl'
 PASSWORD = '19961226'
